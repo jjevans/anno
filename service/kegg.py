@@ -1,7 +1,9 @@
 #use the kegg api for gene and pathway queries
 #jje 06302024
+from anno.service import ncbi
 import datetime
 import os
+import re
 import requests as req
 import sys
 import time
@@ -59,17 +61,20 @@ class API():
 	/link/cpd/map00010	  	List of compound entries in pathway map00010
 	'''
 
-	def __init__(self, max_active=3, baseurl=""):
-		self.baseurl = baseurl
+	def __init__(self, max_active=3, baseurl="https://rest.kegg.jp/"):
+		#remove trailing slash in baseurl
+		self.baseurl = re.sub("/$", "", baseurl)
 		self.max_active = max_active#(max is 3 api requests/second per kegg)
 		self.num_active = 0#counter of current active kegg api queries 
 		self.timeout_after = 3#seconds of wait time to not exceed max allowable queries per second
 		self.dothrow_timeout = True#if True raise exception if wait of max allowable queries exceeds timeout_after seconds
 		self.ts = None#timestamp of last kegg api query
 		
+		self.ncbi_obj = ncbi.API()#to convert gene symbol to entrez id
+
 	def query(self, nonce):#change nonce to be full url with self.baseurl included?
 		#execute kegg api query GET
-		#nonce is the api suffix url ("operation/argument above without the kegg base url)
+		#nonce is the api suffix url ("/operation/argument above without the kegg base url)
 		#param is dictionary of data (optional)
 		#NUMBER of active queries need not exceed self.max_active per second (3 per second)
 		#if self.num_active = max_active queries, this method will wait on a loop until num_active is less than max_active
@@ -99,29 +104,57 @@ class API():
 		self.num_active += 1
 		self.ts = datetime.datetime.now()#set timestamp of last query
 		
+		
+		#make url
+		#delete leading slashes in nonce
+		nonce = re.sub("^/", "", nonce)
+		url = f"{self.baseurl}/{nonce}"
+		
+		#sys.stdout.write(f"request: {url}\n")
+		
 		#query
+		res = req.get(url)
 		
-		#make url.  do here or have as input as full url?
-		url = os.path.join(self.baseurl, nonce)
-		sys.stdout.write(f"request: {url}\n")
-		
-		res = req.get(f"{self.baseurl}/{nonce})
+		result = res.text
 		
 		#decrement num active
 		self.num_active -= 1
-		
-		return res.json()
+
+		#string with single newline if no result returned		
+		if result.rstrip() == "":
+			return
+
+		return result
 	
 	def keggid_by_genesym(self, genesymbol):
-		#use kegg conv
-		return
+		#input is human gene symbol
+		#use anno.service.ncbi to convert gene symbol to entrez id
+		# then self.keggid_by_entrez
+		entrezid = self.ncbi_obj.gene_sym_to_entrez(genesymbol)
+		
+		if entrezid is None:#no entrez id for this gene symbol
+			message = f"ERROR: No entrez id found for gene symbol: {genesymbol}"
+			raise Exception(message)
+
+		return self.keggid_by_entrez(entrezid)
 	
-	def keggid_by_ncbigene(self, geneid):
-		#use kegg conv
-		return
+	def id_by_entrez(self, entrezid):
+		#input is entrez gene id and KEGG organism (hsa=human)
+		#returns kegg id or None if no result
+		#uses kegg conv
+		#	/conv/eco/ncbi-geneid	  	conversion from NCBI GeneID to KEGG ID for E. coli genes
+		#	/conv/genes/ncbi-geneid:948364	  	conversion from NCBI GeneID to KEGG ID when the organism code is not known
+		nonce = f"/conv/genes/ncbi-geneid:{entrezid}"
+
+		result = self.query(nonce)
+		
+		if result is None:#return None if no result returned
+			return
+		
+		return result.rstrip().split("\t")[1]#result is tab delimited string with id in 2nd col
 	
 	def entry_by_id(keggid):
-		#use kegg get
+		#use kegg get to get kegg entry
 		return
 		
 	def pathway_by_gene(kegggene):
