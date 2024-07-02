@@ -120,7 +120,7 @@ class API():
 		#decrement num active
 		self.num_active -= 1
 
-		#string with single newline if no result returned		
+		#string with single newline if no result returned, return None		
 		if result.rstrip() == "":
 			return
 
