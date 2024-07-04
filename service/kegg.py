@@ -110,33 +110,31 @@ class API():
 		nonce = re.sub("^/", "", nonce)
 		url = f"{self.baseurl}/{nonce}"
 		
-		#sys.stdout.write(f"request: {url}\n")
-		
 		#query
 		res = req.get(url)
 		
-		result = res.text
+		result = res.text.rstrip()
 		
 		#decrement num active
 		self.num_active -= 1
 
-		#string with single newline if no result returned, return None		
-		if result.rstrip() == "":
+		#return None if no result returned		
+		if result == "":
 			return
 
 		return result
 	
-	def keggid_by_genesym(self, genesymbol):
+	def id_by_genesym(self, genesymbol):
 		#input is human gene symbol
 		#use anno.service.ncbi to convert gene symbol to entrez id
-		# then self.keggid_by_entrez
+		# then self.id_by_entrez
 		entrezid = self.ncbi_obj.gene_sym_to_entrez(genesymbol)
 		
 		if entrezid is None:#no entrez id for this gene symbol
 			message = f"ERROR: No entrez id found for gene symbol: {genesymbol}"
 			raise Exception(message)
 
-		return self.keggid_by_entrez(entrezid)
+		return self.id_by_entrez(entrezid)
 	
 	def id_by_entrez(self, entrezid):
 		#input is entrez gene id and KEGG organism (hsa=human)
@@ -151,13 +149,89 @@ class API():
 		if result is None:#return None if no result returned
 			return
 		
-		return result.rstrip().split("\t")[1]#result is tab delimited string with id in 2nd col
+		return result.split("\t")[1]#result is tab delimited string with id in 2nd col
 	
-	def entry_by_id(keggid):
-		#use kegg get to get kegg entry
-		return
+	def entry_by_id(self, keggid):
+		#input single string kegg identifier
+		#returns entire record for that kegg entity
+		#use kegg get to get kegg entries
+		#/get/hsa:10458+ece:Z5100
+
+		nonce = f"/get/{keggid}"
+
+		result = self.query(nonce)
 		
-	def pathway_by_gene(kegggene):
+		if result is not None:#strip /// trailing delimiter
+			result = re.sub("\n///$", "", result)
+
+		return result
+
+	def entries_by_ids_raw(self, keggids):
+		#input is array of kegg ids
+		#returns exact raw kegg response of all entries delimited by "///"
+		#use entries_by_id to get dictionary of results
+		#/get/hsa:10458+ece:Z5100
+
+		ids = "+".join(keggids)
+		nonce = f"/get/{ids}"
+
+		return self.query(nonce)
+
+	def entries_by_ids(self, keggids):
+		#input is array of kegg ids
+		#duplicate ids are ignored and not returned in duplicate
+		#returns dict of key kegg id and entry as value for each inputted id_by_entrez
+		rawentries = self.entries_by_ids_raw(keggids)
+		
+		entries = dict()
+				
+		if rawentries is not None:#results found	
+			resarr = rawentries.split("///")
+
+			#remove last empty entry (ends in /// so adds in extra empty element)
+			resarr.pop()
+		
+			resid = None
+			for result in resarr:
+				lines = result.strip().split("\n")
+				for line in lines:
+					items = line.split()
+				
+					#get entry id and organism to match input ids. 
+					# id may have prepended organism (hsa:3223) or just id (3223)
+					if line.startswith("ENTRY"):
+						entryid = items[1]
+
+					if line.startswith("ORGANISM"):
+						organism = items[1]
+
+				
+				#match to input id. check to see if organism defined in input id
+				#organism:id
+				recordid = f"{organism}:{entryid}"
+				
+				#error if record id (organism:entryid or entryid itself not in inputted ids
+				if recordid not in keggids and entryid not in keggids:
+					message = f"ERROR: response id not found in inputted id list: {recordid} or {entryid} not found\n"
+					raise Exception(message)
+
+				#find match		
+				if keggids.index(recordid) is not None:#has organism:id
+					entries[recordid] = result.strip()
+				elif keggids.index(entryid) is not None:#has just id without organism
+					entries[entryid] = result.strip()
+		
+		#ensure all input ids exist in entries dict or add id with value None
+		resids = entries.keys()
+		inputids = set(keggids)
+		missingids = inputids - resids
+
+		for missingid in missingids:
+			entries[missingid] = None
+		 
+		return entries
+
+	def pathway_by_gene(self, kegggene):
 		#use kegg link to get pathway by kegg id for gene
 		return
  
