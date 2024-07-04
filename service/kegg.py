@@ -155,8 +155,7 @@ class API():
 		#input single string kegg identifier
 		#returns entire record for that kegg entity
 		#use kegg get to get kegg entries
-		#/get/hsa:10458+ece:Z5100
-
+		#/get/hsa:10458
 		nonce = f"/get/{keggid}"
 
 		result = self.query(nonce)
