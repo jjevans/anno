@@ -23,7 +23,7 @@ class API():
 		
 	def gene_sym_to_entrez(self, genesymbol):
 		'''
-		query for entrez gene id from gene symbol
+		query for entrez gene id from gene symbol in human
 		returns first result, if found, or None if not found
 		queries for preferred gene symbol and may be reference to aliased symbol
 		esearch.fcgi?db=<database>&term=<query>
