@@ -1,10 +1,13 @@
+#!/usr/bin/env python3
 import sys
 from anno.service import kegg
 
-#get multiple kegg entry from list of kegg ids
+#get multiple kegg entries from list of kegg ids
 #jje 07032024
 
 try:
+	if len(sys.argv) == 1:#raise exception when argv is 1.  it doesn't for some reason
+		raise Exception()
 	kegglst = sys.argv[1:]
 except:
 	message = "usage: kegg_entry_by_id kegg_id\n"

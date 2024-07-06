@@ -72,7 +72,7 @@ class API():
 		
 		self.ncbi_obj = ncbi.API()#to convert gene symbol to entrez id
 
-	def query(self, nonce):#change nonce to be full url with self.baseurl included?
+	def query(self, nonce):
 		#execute kegg api query GET
 		#nonce is the api suffix url ("/operation/argument above without the kegg base url)
 		#param is dictionary of data (optional)
@@ -83,6 +83,7 @@ class API():
 		max_wait_attempt = self.timeout_after/sleeplen
 		
 		#wait if number of active queries is at the maximum allowable queries
+		#FUTURE: use self.ts to gauge if more than 3 api calls made per second, keep dict of active queries, delete out when response
 		numwait = 0		
 		while self.num_active >= self.max_active:#wait waitlen seconds and check again
 			time.sleep(sleeplen)
@@ -190,9 +191,13 @@ class API():
 			#remove last empty entry (ends in /// so adds in extra empty element)
 			resarr.pop()
 		
-			resid = None
-			for result in resarr:
+			for result in resarr:				
+				entryid = None
+				organism = None			
+				recordid = None
+			
 				lines = result.strip().split("\n")
+
 				for line in lines:
 					items = line.split()
 				
@@ -204,7 +209,14 @@ class API():
 					if line.startswith("ORGANISM"):
 						organism = items[1]
 
+					if entryid is not None and organism is not None:#found id, organism
+						break
 				
+				#error if result has organism or id not found
+				if entryid is None or organism is None:#not found id, organism
+					message = f"ERROR: kegg result id or organism not found.  organism={organism}, id={entryid}\n"
+					raise Exception(message)
+
 				#match to input id. check to see if organism defined in input id
 				#organism:id
 				recordid = f"{organism}:{entryid}"
@@ -230,7 +242,15 @@ class API():
 		 
 		return entries
 
-	def pathway_by_gene(self, kegggene):
-		#use kegg link to get pathway by kegg id for gene
+	def pathway_by_id(self, keggpathway):
+		#use kegg link to get pathway by kegg id for a kegg pathway id
 		return
- 
+
+	def pathway_by_genes(self, kegggenes):
+		#use kegg link to get pathway by list of kegg id for genes
+		return
+
+	def genes_by_pathway(self, keggpathway):
+		#get genes associated to kegg pathway
+		#	/link/hsa/hsa00010	  	List of human genes in pathway hsa00010
+		nonce = f"/link/hsa/{keggpathway}"
